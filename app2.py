@@ -65,7 +65,6 @@
 import streamlit as st
 import time
 import os
-from dotenv import load_dotenv
 from code_parser import parse_code
 from style_checker import show_style_corrected
 from error_detector import detect_errors
