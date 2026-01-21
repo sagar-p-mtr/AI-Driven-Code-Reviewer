@@ -26,25 +26,18 @@ def get_ai_suggestions(code_string):
     """
     WHAT IT DOES: Asks AI improvements ideas
     """
-    prompt = f"""
-    Review this Python code and suggest improvements: 
-    {code_string}
-    
-    Provide clear and complete suggestions for each category:
-    
-    1. Code Readability
-       - Improvement:
-       - Example:
-    
-    2. Performance
-       - Improvement:
-       - Example:
-    
-    3. Best Practices
-       - Improvement:
-       - Example:
-    
-    Make sure to provide complete code examples for each suggestion.
+    prompt = f""" 
+    Explain Why Suggestions Were Made: for examples-
+    Not just: “Remove unused import”
+    But: “Unused imports increase memory usage and reduce code readability.”
+
+    Focused on scalability, time/space complexity, readability, performance, best practices.
+    Follow the PEP8 standard coding guidelines for Coding Style Analysis: 
+    ●   Highlight issues like improper indentation, naming conventions, or long functions.
+    ●	Score submissions based on style compliance
+
+    Code:
+        {code_string}
     """
 
     try: 
