@@ -31,10 +31,16 @@ def get_ai_suggestions(code_string):
     Not just: “Remove unused import”
     But: “Unused imports increase memory usage and reduce code readability.”
 
-    Focused on scalability, time/space complexity, readability, performance, best practices.
+    Focused on Provide 2-3 brief suggestions for: 
+    1. Code readability
+    2. Performance
+    3. Best practices
+    .
     Follow the PEP8 standard coding guidelines for Coding Style Analysis: 
     ●   Highlight issues like improper indentation, naming conventions, or long functions.
     ●	Score submissions based on style compliance
+    
+    please strict to the answer in same format for every refresh,
 
     Code:
         {code_string}
