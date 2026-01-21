@@ -36,6 +36,8 @@ def get_ai_suggestions(code_string):
     2. Performance
     3. Best practices
     .
+    give corrected full code once.
+    
     Follow the PEP8 standard coding guidelines for Coding Style Analysis: 
     ●   Highlight issues like improper indentation, naming conventions, or long functions.
     ●	Score submissions based on style compliance
