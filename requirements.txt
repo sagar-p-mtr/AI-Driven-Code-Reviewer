@@ -1,0 +1,13 @@
+# Streamlit
+streamlit
+
+# LangChain Core
+langchain
+langchain-core
+
+# Hugging Face Integration
+langchain-huggingface
+huggingface-hub
+
+# Environment Variable Management
+python-dotenv

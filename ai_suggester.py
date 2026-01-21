@@ -1,12 +1,22 @@
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_core.messages import HumanMessage
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
+# Try to load from Streamlit secrets first, then fallback to .env
+try:
+    import streamlit as st
+    HF_TOKEN = st.secrets["HF_TOKEN"]
+except:
+    from dotenv import load_dotenv
+    load_dotenv()
+    HF_TOKEN = os.getenv("HF_TOKEN")
 
 llm = HuggingFaceEndpoint(
     repo_id='Qwen/Qwen2.5-7B-Instruct',
-    temperature=0.3
+    temperature=0.3,
+    huggingfacehub_api_token=HF_TOKEN,
+    max_new_tokens=1024,
+    timeout=120
 )
 
 model = ChatHuggingFace(llm=llm)
@@ -18,11 +28,23 @@ def get_ai_suggestions(code_string):
     """
     prompt = f"""
     Review this Python code and suggest improvements: 
-    {code_string}. 
-    Provide 2-3 brief suggestions for: 
-    1. Code readability
+    {code_string}
+    
+    Provide clear and complete suggestions for each category:
+    
+    1. Code Readability
+       - Improvement:
+       - Example:
+    
     2. Performance
-    3. Best practices
+       - Improvement:
+       - Example:
+    
+    3. Best Practices
+       - Improvement:
+       - Example:
+    
+    Make sure to provide complete code examples for each suggestion.
     """
 
     try: 
@@ -41,7 +63,7 @@ def get_ai_suggestions(code_string):
     except Exception as e:
         return [{
             "type": "Error",
-            "message": e,
+            "message": str(e),
             "severity": "Info"
         }]
 
