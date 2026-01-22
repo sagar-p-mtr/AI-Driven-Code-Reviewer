@@ -146,10 +146,7 @@ with tab1:
             else:
                 st.error("Could not analyze code for errors")
 
-            # Display original code
-            st.caption("Reference: Your Original Input")
-            with st.expander("See Original Code"):
-                st.code(code, language="python")
+           
 
             st.markdown("---")
 
