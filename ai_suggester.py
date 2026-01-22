@@ -27,25 +27,26 @@ def get_ai_suggestions(code_string):
     WHAT IT DOES: Asks AI improvements ideas
     """
     prompt = f""" 
-    Explain Why Suggestions Were Made: for examples-
-    Not just: “Remove unused import”
-    But: “Unused imports increase memory usage and reduce code readability.”
 
-    Focused on Provide 2-3 brief suggestions for: 
-    1. Code readability
-    2. Performance
-    3. Best practices
-    .
-    give corrected full code once.
-    
-    Follow the PEP8 standard coding guidelines for Coding Style Analysis: 
-    ●   Highlight issues like improper indentation, naming conventions, or long functions.
-    ●	Score submissions based on style compliance
-    
-    please strict to the answer in same format for every refresh,
+        1. Display the original code first.
 
-    Code:
+        2. Provide 2–3 lines brief suggestions focusing on:
+        - Code readability
+        - Performance
+        - Best practices
+
+        3. Follow the PEP8 standard coding guidelines for Coding Style Analysis:
+            • Highlight issues like improper indentation, naming conventions, or long functions.
+            • Score submissions based on style compliance
+        
+        4. Show the corrected full code only once at the end.
+
+        5. Strictly follow the same response format for every execution.
+
+        Code:
         {code_string}
+
+
     """
 
     try: 
