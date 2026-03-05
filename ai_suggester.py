@@ -12,7 +12,8 @@ except:
     HF_TOKEN = os.getenv("HF_TOKEN")
 
 llm = HuggingFaceEndpoint(
-    repo_id='HuggingFaceH4/zephyr-7b-beta',
+    repo_id='Qwen/Qwen3.5-397B-A17B',
+    task='conversational',
     temperature=0.3,
     huggingfacehub_api_token=HF_TOKEN,
     max_new_tokens=1024,
