@@ -12,7 +12,7 @@ except:
     HF_TOKEN = os.getenv("HF_TOKEN")
 
 llm = HuggingFaceEndpoint(
-    repo_id='mistralai/Mistral-7B-Instruct-v0.3',
+    repo_id='HuggingFaceH4/zephyr-7b-beta',
     temperature=0.3,
     huggingfacehub_api_token=HF_TOKEN,
     max_new_tokens=1024,
