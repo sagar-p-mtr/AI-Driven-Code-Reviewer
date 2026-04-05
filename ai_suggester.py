@@ -1,10 +1,8 @@
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 import os
 import json
 import re
-
 from dotenv import load_dotenv
+from ollama import Client
 
 
 def _get_ollama_api_key():
@@ -15,21 +13,6 @@ def _get_ollama_api_key():
     except Exception:
         load_dotenv()
         return os.getenv("OLLAMA_API_KEY")
-
-
-def _build_model(api_key):
-    """Create an Ollama Cloud client for code suggestions."""
-    return ChatOpenAI(
-        model="mistral:latest",
-        api_key=api_key,
-        base_url="https://ollama.com/api",
-        temperature=0.3,
-        max_tokens=2048,
-        model_kwargs={"response_format": {"type": "json_object"}},
-        default_headers={
-            "Authorization": f"Bearer {api_key}",
-        },
-    )
 
 
 def _parse_json_response(text):
@@ -59,8 +42,7 @@ def get_ai_suggestions(code_string):
     """
     WHAT IT DOES: Asks AI improvements ideas
     """
-    prompt = f"""
-You are a strict Python code reviewer.
+    prompt = f"""You are a strict Python code reviewer.
 
 Return ONLY valid JSON with this exact schema and no extra text:
 {{
@@ -100,12 +82,24 @@ Code:
                 "severity": "Info"
             }]
 
-        model = _build_model(api_key)
-        response = model.invoke(
-            [HumanMessage(content=prompt)]
+        # Create Ollama Cloud client
+        client = Client(
+            host="https://ollama.com",
+            headers={"Authorization": f"Bearer {api_key}"}
         )
 
-        ai_message = response.content if isinstance(response.content, str) else str(response.content)
+        # Call the model
+        response = client.generate(
+            model="mistral:latest",
+            prompt=prompt,
+            stream=False,
+            options={
+                "temperature": 0.3,
+                "num_predict": 2048,
+            }
+        )
+
+        ai_message = response.get("response", "")
 
         def _validate_payload(parsed_json):
             required_top = [
@@ -138,8 +132,7 @@ Code:
             parsed = _validate_payload(_parse_json_response(ai_message))
         except Exception:
             # AI-only retry: ask the model to repair its own output into valid JSON.
-            repair_prompt = f"""
-Convert the following content into valid JSON that matches this exact schema.
+            repair_prompt = f"""Convert the following content into valid JSON that matches this exact schema.
 Return ONLY JSON, no markdown, no extra text. Keep all values concise.
 
 Schema:
@@ -169,8 +162,16 @@ Important:
 Content to convert:
 {ai_message}
 """
-            repaired = model.invoke([HumanMessage(content=repair_prompt)])
-            repaired_message = repaired.content if isinstance(repaired.content, str) else str(repaired.content)
+            repaired = client.generate(
+                model="mistral:latest",
+                prompt=repair_prompt,
+                stream=False,
+                options={
+                    "temperature": 0.1,
+                    "num_predict": 2048,
+                }
+            )
+            repaired_message = repaired.get("response", "")
             parsed = _validate_payload(_parse_json_response(repaired_message))
 
         payload = parsed
