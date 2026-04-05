@@ -20,7 +20,7 @@ def _get_openrouter_api_key():
 def _build_model(api_key):
     """Create an OpenRouter client for code suggestions."""
     return ChatOpenAI(
-        model="qwen/qwen3.6-plus:free",
+        model="qwen/qwen3-coder:free",
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
         temperature=0.3,
