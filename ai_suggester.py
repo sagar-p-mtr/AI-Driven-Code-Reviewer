@@ -15,6 +15,16 @@ def _get_ollama_api_key():
         return os.getenv("OLLAMA_API_KEY")
 
 
+def _get_ollama_model():
+    """Load OLLAMA_MODEL from Streamlit secrets or .env, with fallback."""
+    try:
+        import streamlit as st
+        return st.secrets.get("OLLAMA_MODEL", "")
+    except Exception:
+        load_dotenv()
+        return os.getenv("OLLAMA_MODEL", "")
+
+
 def _parse_json_response(text):
     """Parse model output into JSON, tolerating wrappers/fences."""
     raw = text.strip()
@@ -88,20 +98,26 @@ Code:
             headers={"Authorization": f"Bearer {api_key}"}
         )
 
-        # Try to list available models
-        try:
-            models_response = client.list()
-            available_models = [m['name'] for m in models_response.get('models', [])]
-            if not available_models:
-                return [{
-                    "type": "Error",
-                    "message": "No models available on Ollama Cloud. Check your API key or account.",
-                    "severity": "Info"
-                }]
-            model_to_use = available_models[0]
-        except Exception:
-            # Fallback to trying llama2
-            model_to_use = "llama2"
+        # Get model to use: from config, auto-detect, or ask user
+        model_to_use = _get_ollama_model()
+        
+        if not model_to_use:
+            # Try to detect available models
+            try:
+                models_response = client.list()
+                available_models = [m.get('name', m) if isinstance(m, dict) else m for m in models_response.get('models', [])]
+                if available_models:
+                    model_to_use = available_models[0]
+            except Exception as e:
+                pass
+        
+        # If still no model, provide helpful error
+        if not model_to_use:
+            return [{
+                "type": "Error",
+                "message": "No model configured. Set OLLAMA_MODEL in .env (e.g., OLLAMA_MODEL=llama2-uncensored) or check your Ollama Cloud account.",
+                "severity": "Info"
+            }]
 
         # Call the model
         response = client.generate(
