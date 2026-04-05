@@ -1,14 +1,8 @@
 # Streamlit
 streamlit
 
-# LangChain Core
-langchain
-langchain-core
-langchain-openai
-
-# Hugging Face Integration
-langchain-huggingface
-huggingface-hub
+# Ollama Cloud
+ollama
 
 # Environment Variable Management
 python-dotenv
