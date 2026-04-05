@@ -90,7 +90,7 @@ Code:
 
         # Call the model
         response = client.generate(
-            model="mistral:latest",
+            model="neural-chat",
             prompt=prompt,
             stream=False,
             options={
@@ -163,7 +163,7 @@ Content to convert:
 {ai_message}
 """
             repaired = client.generate(
-                model="mistral:latest",
+                model="neural-chat",
                 prompt=repair_prompt,
                 stream=False,
                 options={
