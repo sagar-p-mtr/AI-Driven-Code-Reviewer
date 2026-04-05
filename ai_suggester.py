@@ -88,9 +88,24 @@ Code:
             headers={"Authorization": f"Bearer {api_key}"}
         )
 
+        # Try to list available models
+        try:
+            models_response = client.list()
+            available_models = [m['name'] for m in models_response.get('models', [])]
+            if not available_models:
+                return [{
+                    "type": "Error",
+                    "message": "No models available on Ollama Cloud. Check your API key or account.",
+                    "severity": "Info"
+                }]
+            model_to_use = available_models[0]
+        except Exception:
+            # Fallback to trying llama2
+            model_to_use = "llama2"
+
         # Call the model
         response = client.generate(
-            model="neural-chat",
+            model=model_to_use,
             prompt=prompt,
             stream=False,
             options={
@@ -163,7 +178,7 @@ Content to convert:
 {ai_message}
 """
             repaired = client.generate(
-                model="neural-chat",
+                model=model_to_use,
                 prompt=repair_prompt,
                 stream=False,
                 options={
