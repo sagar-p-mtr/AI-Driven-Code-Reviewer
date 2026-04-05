@@ -1,66 +1,109 @@
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 import os
+import json
+import re
 
-# Try to load from Streamlit secrets first, then fallback to .env
-try:
-    import streamlit as st
-    HF_TOKEN = st.secrets["HF_TOKEN"]
-except:
-    from dotenv import load_dotenv
-    load_dotenv()
-    HF_TOKEN = os.getenv("HF_TOKEN")
+from dotenv import load_dotenv
 
-llm = HuggingFaceEndpoint(
-    repo_id='Qwen/Qwen3.5-397B-A17B',
-    task='conversational',
-    temperature=0.3,
-    huggingfacehub_api_token=HF_TOKEN,
-    max_new_tokens=1024,
-    timeout=120
-)
 
-model = ChatHuggingFace(llm=llm)
+def _get_openrouter_api_key():
+    """Load OPENROUTER_API_KEY from Streamlit secrets first, then .env."""
+    try:
+        import streamlit as st
+        return st.secrets["OPENROUTER_API_KEY"]
+    except Exception:
+        load_dotenv()
+        return os.getenv("OPENROUTER_API_KEY")
+
+
+def _build_model(api_key):
+    """Create an OpenRouter client for code suggestions."""
+    return ChatOpenAI(
+        model="qwen/qwen3.6-plus:free",
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        temperature=0.3,
+        max_tokens=1024,
+        default_headers={
+            "HTTP-Referer": "http://localhost:8501",
+            "X-Title": "AI Code Reviewer",
+        },
+    )
 
 
 def get_ai_suggestions(code_string):
     """
     WHAT IT DOES: Asks AI improvements ideas
     """
-    prompt = f""" 
+    prompt = f"""
+You are a strict Python code reviewer.
 
-        1. Display the original code first.
+Return ONLY valid JSON with this exact schema and no extra text:
+{{
+    "original_code": "string",
+    "suggestions": {{
+        "readability": "string",
+        "performance": "string",
+        "best_practices": "string"
+    }},
+    "coding_style_analysis": {{
+        "naming_issues": "string",
+        "structure_issues": "string",
+        "logic_type_issues": "string",
+        "score": "X/10"
+    }},
+    "corrected_code": "string",
+    "pep8_score_after_corrections": "X/10"
+}}
 
-        2. Provide 2–3 lines brief suggestions focusing on:
-        - Code readability
-        - Performance
-        - Best practices
+Rules:
+- Do not wrap JSON in markdown fences.
+- Preserve newlines in code strings.
+- corrected_code must contain full runnable corrected Python code.
+- Keep suggestions concise.
 
-        3. Follow the PEP8 standard coding guidelines for Coding Style Analysis:
-            • Highlight issues like improper indentation, naming conventions, or long functions.
-            • Score submissions based on style compliance
-        
-        4. Show the corrected full code only once at the end.
+Code:
+{code_string}
+"""
 
-        5. Strictly follow the same response format for every execution.
+    try:
+        api_key = _get_openrouter_api_key()
+        if not api_key:
+            return [{
+                "type": "Error",
+                "message": "OPENROUTER_API_KEY is missing. Add it to .env or Streamlit secrets.",
+                "severity": "Info"
+            }]
 
-        Code:
-        {code_string}
-
-
-    """
-
-    try: 
+        model = _build_model(api_key)
         response = model.invoke(
             [HumanMessage(content=prompt)]
         )
 
-        ai_message = response.content
-        print(ai_message)
+        ai_message = response.content if isinstance(response.content, str) else str(response.content)
+
+        # Try strict parse first; if model adds wrapper text, extract JSON object.
+        try:
+            parsed = json.loads(ai_message)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", ai_message, flags=re.S)
+            if not match:
+                raise ValueError("Model response is not valid JSON")
+            parsed = json.loads(match.group(0))
+
+        payload = {
+            "original_code": parsed.get("original_code", code_string),
+            "suggestions": parsed.get("suggestions", {}),
+            "coding_style_analysis": parsed.get("coding_style_analysis", {}),
+            "corrected_code": parsed.get("corrected_code", code_string),
+            "pep8_score_after_corrections": parsed.get("pep8_score_after_corrections", "N/A")
+        }
 
         return [{
             "type": "AISuggestion",
             "message": ai_message,
+            "payload": payload,
             "severity": "Info"
         }]
     except Exception as e:
@@ -69,4 +112,3 @@ def get_ai_suggestions(code_string):
             "message": str(e),
             "severity": "Info"
         }]
-

@@ -4,6 +4,7 @@ streamlit
 # LangChain Core
 langchain
 langchain-core
+langchain-openai
 
 # Hugging Face Integration
 langchain-huggingface

@@ -1,72 +1,8 @@
-# import streamlit as st
+#AI Code Reviewer Application
+#Main module for Streamlit-based code review interface.
 
-# from code_parser import parse_code
-# from style_checker import show_style_corrected
-# from error_detector import detect_errors
-# from ai_suggester import get_ai_suggestions
-
-# st.title("AI Code Reviewer")
-# st.markdown("Paste your Python code below and click Analyze!")
-# code = st.text_area("Code:")
-
-# if st.button("Analyze"):
-#     if not code:
-#         st.warning("Please enter some code first!")
-#     else:
-#         st.info("Analyzing your code...")
-
-#         parse_result = parse_code(code)
-#         if not parse_result["success"]:
-#             st.error("Your code has syntax errors!")
-#             st.code(parse_result["error"]["message"])
-#             st.stop()
-        
-#         st.success("Code parsed successfully!")
-
-#         st.subheader("Error Detection Results")
-
-#         error_result = detect_errors(code)
-
-#         if error_result["success"]:
-#             if error_result["error_count"] == 0:
-#                 st.success("No error found! Your code looks good.")
-#             else:
-#                 st.warning(f"Found {error_result['error_count']} issue(s):")
-
-#                 for error in error_result["errors"]:
-#                     with st.expander(f" {error['type']}", expanded=True):
-#                         st.write(f"**Message:** {error['message']}")
-#                         st.info(f"**Suggestion:** {error['suggestion']}")
-#         else:
-#             st.error("Could not analyze code for errors")
-
-#         st.subheader("Style-Corrected Version")
-
-#         try:
-#             style_result = show_style_corrected(code)
-
-#             if style_result["success"]:
-#                 st.code(style_result["corrected_code"], language="python")
-#                 st.caption("This is how you code looks with proper formatting")
-#             else:
-#                 st.info("Style correction not available")
-#         except Exception as e:
-#             st.info("Style checking module not found")
-
-#         st.subheader("Your Original Code")
-#         st.code(code, language="python")
-
-#         st.subheader("AI Suggestions")
-
-#         suggest = get_ai_suggestions(code)
-#         st.info(suggest[0]["message"])
-
-        
-"""
-AI Code Reviewer Application
-Main module for Streamlit-based code review interface.
-"""
 import streamlit as st
+import re
 import time
 import os
 from dotenv import load_dotenv
@@ -95,6 +31,127 @@ def stream_data(text):
     for word in text.split(" "):
         yield word + " "
         time.sleep(0.02)
+
+
+def _extract_section(text, start_label, end_label=None):
+    """Return the text between two section labels."""
+    if end_label:
+        pattern = rf"{re.escape(start_label)}\s*(.*?)(?=\n\s*{re.escape(end_label)}|\Z)"
+    else:
+        pattern = rf"{re.escape(start_label)}\s*(.*)"
+
+    match = re.search(pattern, text, flags=re.S | re.I)
+    return match.group(1).strip() if match else ""
+
+
+def _strip_code_fences(text):
+    """Remove markdown fences so code can be rendered in a code box."""
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:python)?\s*", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
+
+
+def _section_header_pattern(title):
+    """Build a tolerant regex for section headings with optional numbering."""
+    escaped = re.escape(title)
+    return rf"^\s*(?:\d+\.\s*)?{escaped}\s*:?[ \t]*$"
+
+
+def _extract_section_by_title(text, start_title, end_title=None):
+    """Extract a section using tolerant heading matching."""
+    start_pattern = _section_header_pattern(start_title)
+    if end_title:
+        end_pattern = _section_header_pattern(end_title)
+        pattern = rf"{start_pattern}\s*(.*?)(?=\n{end_pattern}|\Z)"
+    else:
+        pattern = rf"{start_pattern}\s*(.*)"
+
+    match = re.search(pattern, text, flags=re.S | re.I | re.M)
+    return match.group(1).strip() if match else ""
+
+
+def _render_ai_review(review_text):
+    """Render structured AI output with code boxes and copy buttons."""
+    original_code = _strip_code_fences(
+        _extract_section_by_title(
+            review_text,
+            "ORIGINAL CODE",
+            "SUGGESTIONS"
+        )
+    )
+    suggestions = _extract_section_by_title(
+        review_text,
+        "SUGGESTIONS",
+        "CODING STYLE ANALYSIS (PEP8)"
+    )
+    analysis = _extract_section_by_title(
+        review_text,
+        "CODING STYLE ANALYSIS (PEP8)",
+        "CORRECTED CODE"
+    )
+    corrected_code = _strip_code_fences(
+        _extract_section_by_title(
+            review_text,
+            "CORRECTED CODE",
+            "PEP8 COMPLIANCE SCORE AFTER CORRECTIONS"
+        )
+    )
+    score = _extract_section_by_title(
+        review_text,
+        "PEP8 COMPLIANCE SCORE AFTER CORRECTIONS"
+    )
+
+    st.markdown("### Original Code")
+    st.code(original_code or review_text, language="python")
+
+    st.markdown("### Suggestions")
+    if suggestions:
+        st.markdown(suggestions)
+    else:
+        st.markdown("No suggestions available.")
+
+    st.markdown("### Coding Style Analysis (PEP8)")
+    if analysis:
+        st.markdown(analysis)
+    else:
+        st.markdown("No analysis available.")
+
+    st.markdown("### Corrected Code")
+    st.code(corrected_code or review_text, language="python")
+
+    if score:
+        st.markdown("### PEP8 Compliance Score After Corrections")
+        st.markdown(score)
+
+
+def _render_ai_review_payload(payload):
+    """Render structured review payload returned by the AI layer."""
+    original_code = payload.get("original_code", "")
+    corrected_code = payload.get("corrected_code", "")
+    suggestions = payload.get("suggestions", {})
+    analysis = payload.get("coding_style_analysis", {})
+    pep8_score = payload.get("pep8_score_after_corrections", "N/A")
+
+    st.markdown("### Original Code")
+    st.code(original_code, language="python")
+
+    st.markdown("### Suggestions")
+    st.markdown(f"- Readability: {suggestions.get('readability', 'N/A')}")
+    st.markdown(f"- Performance: {suggestions.get('performance', 'N/A')}")
+    st.markdown(f"- Best Practices: {suggestions.get('best_practices', 'N/A')}")
+
+    st.markdown("### Coding Style Analysis (PEP8)")
+    st.markdown(f"- Naming Issues: {analysis.get('naming_issues', 'N/A')}")
+    st.markdown(f"- Structure Issues: {analysis.get('structure_issues', 'N/A')}")
+    st.markdown(f"- Logic & Type Issues: {analysis.get('logic_type_issues', 'N/A')}")
+    st.markdown(f"- Score: {analysis.get('score', 'N/A')}")
+
+    st.markdown("### Corrected Code")
+    st.code(corrected_code, language="python")
+
+    st.markdown("### PEP8 Compliance Score After Corrections")
+    st.markdown(f"- Score: {pep8_score}")
 
 st.set_page_config(
     page_title="AI Code Reviewer Application",
@@ -163,8 +220,11 @@ with tab2:
 
             for suggestion in suggestions:
                 if suggestion["type"] == "AISuggestion":
-                    with st.chat_message("assistant"):
-                        st.write_stream(stream_data(suggestion["message"]))
+                    with st.container(border=True):
+                        if isinstance(suggestion.get("payload"), dict):
+                            _render_ai_review_payload(suggestion["payload"])
+                        else:
+                            _render_ai_review(suggestion["message"])
                 elif suggestion["type"] == "Error":
                     st.error(suggestion["message"])
     else:
