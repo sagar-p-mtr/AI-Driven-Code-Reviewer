@@ -2,27 +2,39 @@ import os
 import json
 import re
 from dotenv import load_dotenv
-from ollama import Client
+from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
 
 
-def _get_ollama_api_key():
-    """Load OLLAMA_API_KEY from Streamlit secrets first, then .env."""
+def _get_groq_api_key():
+    """Load GROQ_API_KEY from Streamlit secrets first, then .env."""
     try:
         import streamlit as st
-        return st.secrets["OLLAMA_API_KEY"]
+        return st.secrets["GROQ_API_KEY"]
     except Exception:
         load_dotenv()
-        return os.getenv("OLLAMA_API_KEY")
+        return os.getenv("GROQ_API_KEY")
 
 
-def _get_ollama_model():
-    """Load OLLAMA_MODEL from Streamlit secrets or .env, with fallback."""
+def _get_groq_model():
+    """Load GROQ_MODEL from Streamlit secrets or .env, with fallback."""
     try:
         import streamlit as st
-        return st.secrets.get("OLLAMA_MODEL", "")
+        return st.secrets.get("GROQ_MODEL", "llama-3.1-8b-instant")
     except Exception:
         load_dotenv()
-        return os.getenv("OLLAMA_MODEL", "")
+        return os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+
+def _build_model(api_key, model_name):
+    """Create a Groq client via OpenAI-compatible API."""
+    return ChatOpenAI(
+        model=model_name,
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+        temperature=0.3,
+        max_tokens=2048,
+    )
 
 
 def _parse_json_response(text):
@@ -84,53 +96,18 @@ Code:
 """
 
     try:
-        api_key = _get_ollama_api_key()
+        api_key = _get_groq_api_key()
         if not api_key:
             return [{
                 "type": "Error",
-                "message": "OLLAMA_API_KEY is missing. Add it to .env or Streamlit secrets.",
+                "message": "GROQ_API_KEY is missing. Add it to .env or Streamlit secrets.",
                 "severity": "Info"
             }]
 
-        # Create Ollama Cloud client
-        client = Client(
-            host="https://ollama.com",
-            headers={"Authorization": f"Bearer {api_key}"}
-        )
-
-        # Get model to use: from config, auto-detect, or ask user
-        model_to_use = _get_ollama_model()
-        
-        if not model_to_use:
-            # Try to detect available models
-            try:
-                models_response = client.list()
-                available_models = [m.get('name', m) if isinstance(m, dict) else m for m in models_response.get('models', [])]
-                if available_models:
-                    model_to_use = available_models[0]
-            except Exception as e:
-                pass
-        
-        # If still no model, provide helpful error
-        if not model_to_use:
-            return [{
-                "type": "Error",
-                "message": "No model configured. Set OLLAMA_MODEL in .env (e.g., OLLAMA_MODEL=llama2-uncensored) or check your Ollama Cloud account.",
-                "severity": "Info"
-            }]
-
-        # Call the model
-        response = client.generate(
-            model=model_to_use,
-            prompt=prompt,
-            stream=False,
-            options={
-                "temperature": 0.3,
-                "num_predict": 2048,
-            }
-        )
-
-        ai_message = response.get("response", "")
+        model_to_use = _get_groq_model()
+        model = _build_model(api_key, model_to_use)
+        response = model.invoke([HumanMessage(content=prompt)])
+        ai_message = response.content if isinstance(response.content, str) else str(response.content)
 
         def _validate_payload(parsed_json):
             required_top = [
@@ -193,16 +170,8 @@ Important:
 Content to convert:
 {ai_message}
 """
-            repaired = client.generate(
-                model=model_to_use,
-                prompt=repair_prompt,
-                stream=False,
-                options={
-                    "temperature": 0.1,
-                    "num_predict": 2048,
-                }
-            )
-            repaired_message = repaired.get("response", "")
+            repaired = model.invoke([HumanMessage(content=repair_prompt)])
+            repaired_message = repaired.content if isinstance(repaired.content, str) else str(repaired.content)
             parsed = _validate_payload(_parse_json_response(repaired_message))
 
         payload = parsed

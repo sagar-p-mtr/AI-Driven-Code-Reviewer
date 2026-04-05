@@ -1,8 +1,9 @@
 # Streamlit
 streamlit
 
-# Ollama Cloud
-ollama
+# LangChain + Groq (OpenAI compatible)
+langchain-openai
+langchain-core
 
 # Environment Variable Management
 python-dotenv
