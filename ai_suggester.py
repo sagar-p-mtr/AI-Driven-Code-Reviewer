@@ -7,28 +7,27 @@ import re
 from dotenv import load_dotenv
 
 
-def _get_openrouter_api_key():
-    """Load OPENROUTER_API_KEY from Streamlit secrets first, then .env."""
+def _get_ollama_api_key():
+    """Load OLLAMA_API_KEY from Streamlit secrets first, then .env."""
     try:
         import streamlit as st
-        return st.secrets["OPENROUTER_API_KEY"]
+        return st.secrets["OLLAMA_API_KEY"]
     except Exception:
         load_dotenv()
-        return os.getenv("OPENROUTER_API_KEY")
+        return os.getenv("OLLAMA_API_KEY")
 
 
 def _build_model(api_key):
-    """Create an OpenRouter client for code suggestions."""
+    """Create an Ollama Cloud client for code suggestions."""
     return ChatOpenAI(
-        model="stepfun/step-3.5-flash:free",
+        model="devstral-small-2",
         api_key=api_key,
-        base_url="https://openrouter.ai/api/v1",
+        base_url="https://ollama.com/api",
         temperature=0.3,
         max_tokens=2048,
         model_kwargs={"response_format": {"type": "json_object"}},
         default_headers={
-            "HTTP-Referer": "http://localhost:8501",
-            "X-Title": "AI Code Reviewer",
+            "Authorization": f"Bearer {api_key}",
         },
     )
 
@@ -93,11 +92,11 @@ Code:
 """
 
     try:
-        api_key = _get_openrouter_api_key()
+        api_key = _get_ollama_api_key()
         if not api_key:
             return [{
                 "type": "Error",
-                "message": "OPENROUTER_API_KEY is missing. Add it to .env or Streamlit secrets.",
+                "message": "OLLAMA_API_KEY is missing. Add it to .env or Streamlit secrets.",
                 "severity": "Info"
             }]
 
