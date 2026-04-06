@@ -1,26 +1,23 @@
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-from langchain_core.messages import HumanMessage
+from langchain_groq import ChatGroq
 import os
 
 # Try to load from Streamlit secrets first, then fallback to .env
 try:
     import streamlit as st
-    HF_TOKEN = st.secrets["HF_TOKEN"]
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    GROQ_MODEL = st.secrets.get("GROQ_MODEL", "llama-3.1-8b-instant")
 except:
     from dotenv import load_dotenv
     load_dotenv()
-    HF_TOKEN = os.getenv("HF_TOKEN")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
-llm = HuggingFaceEndpoint(
-    repo_id='Qwen/Qwen3.5-397B-A17B',
-    task='conversational',
+model = ChatGroq(
+    api_key=GROQ_API_KEY,
+    model=GROQ_MODEL,
     temperature=0.3,
-    huggingfacehub_api_token=HF_TOKEN,
-    max_new_tokens=1024,
-    timeout=120
+    timeout=120,
 )
-
-model = ChatHuggingFace(llm=llm)
 
 
 def get_ai_suggestions(code_string):
@@ -29,30 +26,48 @@ def get_ai_suggestions(code_string):
     """
     prompt = f""" 
 
-        1. Display the original code first.
+        You are a strict Python code reviewer.
 
-        2. Provide 2–3 lines brief suggestions focusing on:
-        - Code readability
-        - Performance
-        - Best practices
+        Follow the EXACT response format below. Do NOT add extra explanations.
 
-        3. Follow the PEP8 standard coding guidelines for Coding Style Analysis:
-            • Highlight issues like improper indentation, naming conventions, or long functions.
-            • Score submissions based on style compliance
-        
-        4. Show the corrected full code only once at the end.
-
-        5. Strictly follow the same response format for every execution.
-
-        Code:
+        1. ORIGINAL CODE:
+        ```python
         {code_string}
+        ```
+
+        2. SUGGESTIONS FOR IMPROVEMENT:
+        - Readability:
+        - Performance:
+        - Best Practices:
+
+        3. CODING STYLE ANALYSIS (PEP8):
+        - Naming Issues:
+        - Structure Issues:
+        - Logic & Type Issues:
+        - Score: X/10
+
+        4. CORRECTED CODE:
+        ```python
+        <only final corrected code>
+        ```
+
+        5. PEP8 COMPLIANCE SCORE:
+        - Score: X/10
+
+        RULES:
+        - Do NOT explain anything outside the format.
+        - Do NOT add extra paragraphs.
+        - Keep suggestions strictly 2-3 lines total.
+        - Always follow same headings and order.
+        - Correct code must appear ONLY once at the end.
+        - Preserve all line breaks and indentation from the original code.
 
 
     """
 
     try: 
         response = model.invoke(
-            [HumanMessage(content=prompt)]
+            prompt
         )
 
         ai_message = response.content
