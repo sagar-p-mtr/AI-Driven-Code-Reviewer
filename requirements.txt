@@ -1,14 +1,10 @@
 # Streamlit
 streamlit
 
-# LangChain Core
-langchain
+# LangChain + Groq (OpenAI compatible)
+langchain-openai
 langchain-core
 langchain-groq
-
-# Hugging Face Integration
-langchain-huggingface
-huggingface-hub
 
 # Environment Variable Management
 python-dotenv

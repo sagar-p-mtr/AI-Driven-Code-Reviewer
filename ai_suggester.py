@@ -1,81 +1,185 @@
-from langchain_groq import ChatGroq
 import os
+import json
+import re
+from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage
+from langchain_openai import ChatOpenAI
 
-# Try to load from Streamlit secrets first, then fallback to .env
-try:
-    import streamlit as st
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-    GROQ_MODEL = st.secrets.get("GROQ_MODEL", "llama-3.1-8b-instant")
-except:
-    from dotenv import load_dotenv
-    load_dotenv()
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
-model = ChatGroq(
-    api_key=GROQ_API_KEY,
-    model=GROQ_MODEL,
-    temperature=0.3,
-    timeout=120,
-)
+def _get_groq_api_key():
+    """Load GROQ_API_KEY from Streamlit secrets first, then .env."""
+    try:
+        import streamlit as st
+        return st.secrets["GROQ_API_KEY"]
+    except Exception:
+        load_dotenv()
+        return os.getenv("GROQ_API_KEY")
+
+
+def _get_groq_model():
+    """Load GROQ_MODEL from Streamlit secrets or .env, with fallback."""
+    try:
+        import streamlit as st
+        return st.secrets.get("GROQ_MODEL", "llama-3.1-8b-instant")
+    except Exception:
+        load_dotenv()
+        return os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+
+def _build_model(api_key, model_name):
+    """Create a Groq client via OpenAI-compatible API."""
+    return ChatOpenAI(
+        model=model_name,
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+        temperature=0.3,
+        max_tokens=2048,
+    )
+
+
+def _parse_json_response(text):
+    """Parse model output into JSON, tolerating wrappers/fences."""
+    raw = text.strip()
+
+    # Truncate if too long (safety measure for length limit errors)
+    MAX_LEN = 8000
+    if len(raw) > MAX_LEN:
+        raw = raw[:MAX_LEN]
+
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+        raw = re.sub(r"\s*```$", "", raw)
+
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        first = raw.find("{")
+        last = raw.rfind("}")
+        if first == -1 or last == -1 or last <= first:
+            raise
+        return json.loads(raw[first:last + 1])
 
 
 def get_ai_suggestions(code_string):
     """
     WHAT IT DOES: Asks AI improvements ideas
     """
-    prompt = f""" 
+    prompt = f"""You are a strict Python code reviewer.
 
-        You are a strict Python code reviewer.
+Return ONLY valid JSON with this exact schema and no extra text:
+{{
+    "original_code": "string",
+    "suggestions": {{
+        "readability": "string (1-2 sentences)",
+        "performance": "string (1-2 sentences)",
+        "best_practices": "string (1-2 sentences)"
+    }},
+    "coding_style_analysis": {{
+        "naming_issues": "string (concise)",
+        "structure_issues": "string (concise)",
+        "logic_type_issues": "string (concise)",
+        "score": "X/10"
+    }},
+    "corrected_code": "string (complete runnable code)",
+    "pep8_score_after_corrections": "X/10"
+}}
 
-        Follow the EXACT response format below. Do NOT add extra explanations.
+IMPORTANT - Response must be concise:
+- Keep all string values brief (1-3 sentences max, except corrected_code).
+- Do NOT include examples or explanations beyond what's required.
+- Do not wrap JSON in markdown fences.
+- Preserve newlines in code strings as \\n.
+- corrected_code must contain full runnable corrected Python code.
 
-        1. ORIGINAL CODE:
-        ```python
-        {code_string}
-        ```
+Code:
+{code_string}
+"""
 
-        2. SUGGESTIONS FOR IMPROVEMENT:
-        - Readability:
-        - Performance:
-        - Best Practices:
+    try:
+        api_key = _get_groq_api_key()
+        if not api_key:
+            return [{
+                "type": "Error",
+                "message": "GROQ_API_KEY is missing. Add it to .env or Streamlit secrets.",
+                "severity": "Info"
+            }]
 
-        3. CODING STYLE ANALYSIS (PEP8):
-        - Naming Issues:
-        - Structure Issues:
-        - Logic & Type Issues:
-        - Score: X/10
+        model_to_use = _get_groq_model()
+        model = _build_model(api_key, model_to_use)
+        response = model.invoke([HumanMessage(content=prompt)])
+        ai_message = response.content if isinstance(response.content, str) else str(response.content)
 
-        4. CORRECTED CODE:
-        ```python
-        <only final corrected code>
-        ```
+        def _validate_payload(parsed_json):
+            required_top = [
+                "original_code",
+                "suggestions",
+                "coding_style_analysis",
+                "corrected_code",
+                "pep8_score_after_corrections",
+            ]
+            for key in required_top:
+                if key not in parsed_json:
+                    raise ValueError(f"Missing required key: {key}")
 
-        5. PEP8 COMPLIANCE SCORE:
-        - Score: X/10
+            if not isinstance(parsed_json["suggestions"], dict):
+                raise ValueError("'suggestions' must be an object")
+            if not isinstance(parsed_json["coding_style_analysis"], dict):
+                raise ValueError("'coding_style_analysis' must be an object")
 
-        RULES:
-        - Do NOT explain anything outside the format.
-        - Do NOT add extra paragraphs.
-        - Keep suggestions strictly 2-3 lines total.
-        - Always follow same headings and order.
-        - Correct code must appear ONLY once at the end.
-        - Preserve all line breaks and indentation from the original code.
+            for key in ["readability", "performance", "best_practices"]:
+                if key not in parsed_json["suggestions"]:
+                    raise ValueError(f"Missing suggestions.{key}")
 
+            for key in ["naming_issues", "structure_issues", "logic_type_issues", "score"]:
+                if key not in parsed_json["coding_style_analysis"]:
+                    raise ValueError(f"Missing coding_style_analysis.{key}")
 
-    """
+            return parsed_json
 
-    try: 
-        response = model.invoke(
-            prompt
-        )
+        try:
+            parsed = _validate_payload(_parse_json_response(ai_message))
+        except Exception:
+            # AI-only retry: ask the model to repair its own output into valid JSON.
+            repair_prompt = f"""Convert the following content into valid JSON that matches this exact schema.
+Return ONLY JSON, no markdown, no extra text. Keep all values concise.
 
-        ai_message = response.content
-        print(ai_message)
+Schema:
+{{
+  "original_code": "string",
+  "suggestions": {{
+    "readability": "string (1-2 sentences)",
+    "performance": "string (1-2 sentences)",
+    "best_practices": "string (1-2 sentences)"
+  }},
+  "coding_style_analysis": {{
+    "naming_issues": "string (concise)",
+    "structure_issues": "string (concise)",
+    "logic_type_issues": "string (concise)",
+    "score": "X/10"
+  }},
+  "corrected_code": "string (complete runnable code)",
+  "pep8_score_after_corrections": "X/10"
+}}
+
+Important:
+- Escape newlines inside JSON string values as \\n.
+- Ensure every string is properly closed with double quotes.
+- Keep all descriptions brief and focused.
+- Do NOT include explanations beyond the schema fields.
+
+Content to convert:
+{ai_message}
+"""
+            repaired = model.invoke([HumanMessage(content=repair_prompt)])
+            repaired_message = repaired.content if isinstance(repaired.content, str) else str(repaired.content)
+            parsed = _validate_payload(_parse_json_response(repaired_message))
+
+        payload = parsed
 
         return [{
             "type": "AISuggestion",
-            "message": ai_message,
+            "message": json.dumps(payload, ensure_ascii=False, indent=2),
+            "payload": payload,
             "severity": "Info"
         }]
     except Exception as e:
@@ -84,4 +188,3 @@ def get_ai_suggestions(code_string):
             "message": str(e),
             "severity": "Info"
         }]
-
