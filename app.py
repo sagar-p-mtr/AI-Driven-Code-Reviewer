@@ -55,7 +55,9 @@ def _strip_code_fences(text):
 def _section_header_pattern(title):
     """Build a tolerant regex for section headings with optional numbering."""
     escaped = re.escape(title)
-    return rf"^\s*(?:\d+\.\s*)?{escaped}\s*:?[ \t]*$"
+    # Allow optional trailing words after the base heading title,
+    # e.g. "SUGGESTIONS FOR IMPROVEMENT" for title "SUGGESTIONS".
+    return rf"^\s*(?:\d+\.\s*)?{escaped}(?:[^\n:]*)\s*:?[ \t]*$"
 
 
 def _extract_section_by_title(text, start_title, end_title=None):

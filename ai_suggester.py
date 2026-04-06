@@ -32,7 +32,9 @@ def get_ai_suggestions(code_string):
             Follow the EXACT response format below. Do NOT add extra explanations.
 
             1. ORIGINAL CODE:
-            <the original code to review>
+             ```python
+                {code_string}
+            ```
 
             2. SUGGESTIONS FOR IMPROVEMENT:
             - Readability:
